@@ -33,9 +33,6 @@ export default function ForgotPasswordPage() {
           <p className="auth-card__sub" style={{ marginBottom: "var(--sp-8)" }}>
             If an account exists for <strong>{email}</strong>, we've sent a password reset link.
           </p>
-          <div className="demo-notice" style={{ marginBottom: "var(--sp-6)", textAlign: "left" }}>
-            <strong>Demo mode:</strong> Check your terminal console where the server is running to see the reset link!
-          </div>
           <Link to="/login" className="button button--secondary" style={{ width: "100%", justifyContent: "center" }}>
             Return to login
           </Link>

@@ -127,15 +127,44 @@ router.post("/forgot-password", async (req, res, next) => {
       [token, expires, result.rows[0].id]
     );
 
-    // For now: print to console (Resend integration comes later)
-    const resetUrl = `http://localhost:5173/reset-password?token=${token}`;
-    console.log("\n╔══════════════════════════════════════════════╗");
-    console.log("║       PASSWORD RESET LINK (DEMO MODE)        ║");
-    console.log("╠══════════════════════════════════════════════╣");
-    console.log(`║ Email: ${email}`);
-    console.log(`║ Link:  ${resetUrl}`);
-    console.log("║ (In production this would be emailed via Resend) ║");
-    console.log("╚══════════════════════════════════════════════╝\n");
+    // Get the base URL from the request for the reset link
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+    const host = req.headers.host;
+    const baseUrl = process.env.VERCEL === "1" ? `https://${host}` : `http://localhost:5173`;
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+
+    if (process.env.RESEND_API_KEY) {
+      const { Resend } = await import("resend");
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: "Groove & Co. <onboarding@resend.dev>", // default testing domain provided by Resend
+        to: email,
+        subject: "Password Reset for Groove & Co.",
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #111;">
+            <h2>Groove & Co. Password Reset</h2>
+            <p>You requested a password reset. Click the button below to choose a new password.</p>
+            <p>
+              <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #7928CA; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
+                Reset Password
+              </a>
+            </p>
+            <p style="color: #666; font-size: 14px; margin-top: 20px;">
+              If you didn't request this, you can safely ignore this email.
+            </p>
+          </div>
+        `,
+      });
+    } else {
+      // Fallback to console if no API key is provided
+      console.log("\n╔══════════════════════════════════════════════╗");
+      console.log("║       PASSWORD RESET LINK (DEMO MODE)        ║");
+      console.log("╠══════════════════════════════════════════════╣");
+      console.log(`║ Email: ${email}`);
+      console.log(`║ Link:  ${resetUrl}`);
+      console.log("║ (Set RESEND_API_KEY to send real emails)     ║");
+      console.log("╚══════════════════════════════════════════════╝\n");
+    }
 
     res.json({ message: "If this email exists, a reset link has been sent." });
   } catch (err) {
