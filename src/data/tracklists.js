@@ -1,0 +1,91 @@
+export const TRACKLISTS = {
+  "GR-001": [
+    { title: "Streetlight Ritual", duration: "4:18" },
+    { title: "Nightshade Hours", duration: "6:02" },
+    { title: "Soft Machinery", duration: "3:47" },
+    { title: "Last Signal Home", duration: "5:31" },
+    { title: "Amber Residue", duration: "7:14" },
+  ],
+  "GR-002": [
+    { title: "Concrete Choir", duration: "3:42" },
+    { title: "Wire Frame", duration: "4:05" },
+    { title: "No Safe Harbour", duration: "5:16" },
+    { title: "Tenement Hymn", duration: "3:58" },
+    { title: "Fracture Line", duration: "6:11" },
+  ],
+  "GR-003": [
+    { title: "Low Tide", duration: "5:03" },
+    { title: "The Sermon of Stones", duration: "4:44" },
+    { title: "Rushes", duration: "3:28" },
+    { title: "Bogland Mass", duration: "8:21" },
+  ],
+  "GR-004": [
+    { title: "Sodium Glow", duration: "6:30" },
+    { title: "Autobahn Mirage", duration: "8:02" },
+    { title: "Wattage", duration: "5:47" },
+    { title: "Pale Traffic", duration: "7:15" },
+    { title: "Exit A5", duration: "4:33" },
+  ],
+  "GR-005": [
+    { title: "Rooftop", duration: "3:12" },
+    { title: "Antenna Ghost", duration: "5:44" },
+    { title: "FM Static", duration: "4:09" },
+    { title: "Signal Decay", duration: "6:23" },
+  ],
+  "GR-006": [
+    { title: "Splinter Kingdom", duration: "4:02" },
+    { title: "Rust Architecture", duration: "5:18" },
+    { title: "Cage Geography", duration: "3:55" },
+    { title: "Bone Meridian", duration: "6:44" },
+    { title: "Hollow Parliament", duration: "4:27" },
+  ],
+  "GR-007": [
+    { title: "Salt Chapel", duration: "7:12" },
+    { title: "The Grieving Fields", duration: "5:03" },
+    { title: "Stonewort", duration: "4:38" },
+    { title: "Tidal Vespers", duration: "6:55" },
+    { title: "Last Benediction", duration: "9:11" },
+  ],
+  "GR-008": [
+    { title: "Chrome Orchard", duration: "7:44" },
+    { title: "Pixel Rain", duration: "5:02" },
+    { title: "DAT Pulse", duration: "6:18" },
+    { title: "Dissolve State", duration: "8:33" },
+    { title: "Afterglow Protocol", duration: "4:56" },
+  ],
+  "GR-009": [
+    { title: "Held Breath", duration: "9:08" },
+    { title: "Still Water", duration: "6:14" },
+    { title: "Weight of Air", duration: "7:42" },
+    { title: "Interval", duration: "4:03" },
+    { title: "The Release", duration: "11:22" },
+  ],
+  "GR-010": [
+    { title: "Meridian Ache", duration: "8:20" },
+    { title: "Longitude", duration: "5:44" },
+    { title: "Warm Compass", duration: "6:37" },
+    { title: "Arrival", duration: "7:55" },
+  ],
+  "GR-011": [
+    { title: "Harbour Psalm I", duration: "6:02" },
+    { title: "Harbour Psalm II", duration: "8:14" },
+    { title: "The Mooring", duration: "4:33" },
+    { title: "Saltwater Requiem", duration: "9:47" },
+    { title: "Return to Shore", duration: "5:28" },
+  ],
+  "GR-012": [
+    { title: "Iron Litany (Live)", duration: "5:11" },
+    { title: "Splinter Kingdom (Live)", duration: "6:03" },
+    { title: "Concrete Choir (Live)", duration: "4:48" },
+    { title: "Wire Frame (Live)", duration: "5:22" },
+    { title: "Bone Meridian (Live)", duration: "7:14" },
+    { title: "Hollow Parliament (Live)", duration: "8:30" },
+  ],
+};
+
+export const DEFAULT_TRACKLIST = [
+  { title: "Opening Transmission", duration: "3:58" },
+  { title: "The Long Way Around", duration: "4:26" },
+  { title: "Afterimage", duration: "5:12" },
+  { title: "Dusk Signal", duration: "3:44" },
+];
