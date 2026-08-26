@@ -12,8 +12,10 @@ app.use(express.json());
 // Auth routes
 app.use("/api/auth", authRouter);
 
+// Returns ONE row per album (cheapest variant), avoiding duplicates in the grid.
 const productSelect = `
-  SELECT a.catalog_id AS id, a.title, ar.name AS artist, g.name AS genre,
+  SELECT DISTINCT ON (a.id)
+         a.catalog_id AS id, a.title, ar.name AS artist, g.name AS genre,
          a.release_year AS year, a.description, a.artwork_palette AS palette,
          a.artwork_url, a.itunes_id,
          v.id AS variant_id, v.format, v.edition_name, v.price_cents,
@@ -49,11 +51,21 @@ app.get("/api/products", async (request, response, next) => {
     const values = [];
     const conditions = [];
     const search = String(request.query.search || "").trim();
+    const limit  = Math.min(parseInt(request.query.limit  || "12", 10), 100);
+    const offset = Math.max(parseInt(request.query.offset || "0",  10), 0);
     if (search) { values.push(`%${search}%`); conditions.push(`(a.title ILIKE $${values.length} OR ar.name ILIKE $${values.length} OR g.name ILIKE $${values.length})`); }
     if (request.query.genre && request.query.genre !== "All") { values.push(request.query.genre); conditions.push(`g.name = $${values.length}`); }
     if (request.query.format && request.query.format !== "All") { values.push(request.query.format); conditions.push(`v.format = $${values.length}`); }
-    const result = await query(`${productSelect}${conditions.length ? ` WHERE ${conditions.join(" AND ")}` : ""} ORDER BY a.release_year DESC, a.title`, values);
-    response.json({ products: result.rows.map(mapProduct), count: result.rowCount });
+    const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
+    // Wrap in subquery so ORDER BY + LIMIT work correctly with DISTINCT ON
+    const sql = `SELECT * FROM (${productSelect}${where} ORDER BY a.id, v.price_cents) AS deduped ORDER BY year DESC, title LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+    values.push(limit, offset);
+    const result = await query(sql, values);
+    // Count total distinct albums for pagination
+    const countSql = `SELECT COUNT(DISTINCT a.id) FROM albums a JOIN artists ar ON ar.id = a.artist_id LEFT JOIN genres g ON g.id = a.genre_id JOIN product_variants v ON v.album_id = a.id${where}`;
+    const countResult = await query(countSql, values.slice(0, -2));
+    const total = parseInt(countResult.rows[0].count, 10);
+    response.json({ products: result.rows.map(mapProduct), count: result.rowCount, total, hasMore: offset + limit < total });
   } catch (error) { next(error); }
 });
 

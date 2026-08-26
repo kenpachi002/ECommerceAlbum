@@ -28,10 +28,16 @@ function useDebounce(value, delay) {
   return debounced;
 }
 
+const PAGE_SIZE = 12;
+
 export default function CatalogPage({ search, genre, format, onGenreChange, onFormatChange, onAdd, wishlist }) {
   // ── DB catalog state ──────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
   const [collection, setCollection] = useState("All records");
   const [genreCounts, setGenreCounts] = useState({});
   const [formatCounts, setFormatCounts] = useState({});
@@ -39,26 +45,33 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
   // ── iTunes live search state ──────────────────────────────────────────────
   const [itunesResults, setItunesResults] = useState([]);
   const [itunesLoading, setItunesLoading] = useState(false);
-  const [showItunes, setShowItunes] = useState(false);
 
   const normalizedSearch = search.trim().toLowerCase();
   const debouncedSearch = useDebounce(normalizedSearch, 350);
 
-  // ── Load from PostgreSQL ──────────────────────────────────────────────────
+  // ── Load from PostgreSQL (reset on filter/search change) ─────────────────
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setProducts([]);
+    setOffset(0);
+    setHasMore(false);
 
     const params = new URLSearchParams();
     if (normalizedSearch) params.append("search", normalizedSearch);
     if (genre !== "All") params.append("genre", genre);
     if (format !== "All") params.append("format", format);
+    params.append("limit", PAGE_SIZE);
+    params.append("offset", "0");
 
     fetch(`/api/products?${params}`)
       .then(res => res.ok ? res.json() : Promise.reject(res.status))
       .then(data => {
         if (!cancelled) {
           setProducts(data.products || []);
+          setTotal(data.total || 0);
+          setHasMore(data.hasMore || false);
+          setOffset(PAGE_SIZE);
           setLoading(false);
         }
       })
@@ -69,14 +82,34 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
     return () => { cancelled = true; };
   }, [normalizedSearch, genre, format]);
 
-  // ── Load filter counts from all products (no filters) ──────────────────
+  // ── Load more handler ─────────────────────────────────────────────────────
+  async function loadMore() {
+    setLoadingMore(true);
+    const params = new URLSearchParams();
+    if (normalizedSearch) params.append("search", normalizedSearch);
+    if (genre !== "All") params.append("genre", genre);
+    if (format !== "All") params.append("format", format);
+    params.append("limit", PAGE_SIZE);
+    params.append("offset", offset);
+    try {
+      const res = await fetch(`/api/products?${params}`);
+      const data = await res.json();
+      setProducts(prev => [...prev, ...(data.products || [])]);
+      setHasMore(data.hasMore || false);
+      setOffset(o => o + PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  // ── Load filter counts (fetch all without pagination) ─────────────────
   useEffect(() => {
-    fetch("/api/products")
+    fetch("/api/products?limit=100&offset=0")
       .then(r => r.json())
       .then(data => {
         const all = data.products || [];
-        const gc = { All: all.length };
-        const fc = { All: all.length };
+        const gc = { All: data.total || all.length };
+        const fc = { All: data.total || all.length };
         all.forEach(p => {
           gc[p.genre] = (gc[p.genre] || 0) + 1;
           fc[p.format] = (fc[p.format] || 0) + 1;
@@ -244,9 +277,9 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
                 <h2>{normalizedSearch ? `Results for "${search}"` : "The Catalog"}</h2>
                 {!loading && (
                   <p className="catalog-count">
-                    {visibleProducts.length} {visibleProducts.length === 1 ? "pressing" : "pressings"} in your catalog
+                    Showing {products.length} of {total} {total === 1 ? "pressing" : "pressings"}
                     {normalizedSearch && itunesResults.length > 0 && !itunesLoading &&
-                      ` · ${itunesResults.length} in the global archive`}
+                      ` · ${itunesResults.length} in global archive`}
                   </p>
                 )}
               </div>
@@ -270,14 +303,14 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
             {/* DB Catalog Results */}
             {loading ? (
               <SkeletonGrid count={8} />
-            ) : visibleProducts.length === 0 && !normalizedSearch ? (
+            ) : products.length === 0 && !normalizedSearch ? (
               <EmptyState
                 title="No pressings found"
                 message="Try adjusting your filters."
               />
-            ) : visibleProducts.length > 0 ? (
+            ) : products.length > 0 ? (
               <div className="product-grid">
-                {visibleProducts.map((product) => (
+                {products.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -287,6 +320,20 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
                 ))}
               </div>
             ) : null}
+
+            {/* Load More */}
+            {hasMore && !loading && (
+              <div style={{ textAlign: "center", padding: "var(--sp-8) 0" }}>
+                <button
+                  className="button button--secondary"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  style={{ minWidth: "180px" }}
+                >
+                  {loadingMore ? "Loading…" : `Load more · ${total - products.length} remaining`}
+                </button>
+              </div>
+            )}
 
             {/* ── Global Archive (iTunes Live Results) ─────────────── */}
             {normalizedSearch && (

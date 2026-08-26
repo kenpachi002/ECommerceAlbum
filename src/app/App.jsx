@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { BrowserRouter, Route, Routes, Link } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Link, Navigate, useLocation } from "react-router-dom";
 import { Header } from "../components/layout/Header";
 import { Footer } from "../components/layout/Footer";
 import { CartDrawer } from "../components/cart/CartDrawer";
@@ -15,9 +15,29 @@ import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import ForgotPasswordPage from "../pages/ForgotPasswordPage";
 import ResetPasswordPage from "../pages/ResetPasswordPage";
-import { AuthProvider } from "../features/auth/AuthContext";
+import { AuthProvider, useAuth } from "../features/auth/AuthContext";
 import "../styles/globals.css";
 import "../styles/components.css";
+
+// ── Route Guards ──────────────────────────────────────────────────────────────
+
+/** Redirects to /login if not authenticated. Shows nothing while auth is loading. */
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return null; // wait for auth check before redirecting
+  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  return children;
+}
+
+/** Redirects already-logged-in users away from login/register pages. */
+function GuestRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/" replace />;
+  return children;
+}
+
 
 function StoreShell() {
   const [search, setSearch] = useState("");
@@ -76,38 +96,52 @@ function StoreShell() {
       />
 
       <main id="main-content">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <CatalogPage
-                search={search}
-                genre={genre}
-                format={format}
-                onGenreChange={setGenre}
-                onFormatChange={setFormat}
-                onAdd={addToCart}
-                wishlist={wishlist}
-              />
-            }
-          />
-          <Route path="/products/:productId" element={<ProductPage onAdd={addToCart} wishlist={wishlist} />} />
-          <Route
-            path="/checkout"
-            element={<CheckoutPage cart={cart} onCheckout={handleCheckout} />}
-          />
-          <Route
-            path="/order-confirmation"
-            element={<OrderConfirmationPage order={checkoutOrder} />}
-          />
-          <Route path="/wishlist" element={<WishlistPage wishlist={wishlist} onAdd={addToCart} />} />
-          <Route path="/artists/:artistId" element={<ArtistPage onAdd={addToCart} wishlist={wishlist} />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="*" element={<ProductPage onAdd={addToCart} wishlist={wishlist} />} />
-        </Routes>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <CatalogPage
+                  search={search}
+                  genre={genre}
+                  format={format}
+                  onGenreChange={setGenre}
+                  onFormatChange={setFormat}
+                  onAdd={addToCart}
+                  wishlist={wishlist}
+                />
+              }
+            />
+            <Route path="/products/:productId" element={<ProductPage onAdd={addToCart} wishlist={wishlist} />} />
+
+            {/* Protected: must be logged in */}
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage cart={cart} onCheckout={handleCheckout} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/order-confirmation"
+              element={
+                <ProtectedRoute>
+                  <OrderConfirmationPage order={checkoutOrder} />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="/wishlist" element={<WishlistPage wishlist={wishlist} onAdd={addToCart} />} />
+            <Route path="/artists/:artistId" element={<ArtistPage onAdd={addToCart} wishlist={wishlist} />} />
+
+            {/* Guest only: redirect to / if already logged in */}
+            <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+            <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+            <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
       </main>
 
       <Footer />

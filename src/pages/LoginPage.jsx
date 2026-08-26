@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || "/";
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState(null);
@@ -19,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login({ email: form.email, password: form.password });
-      navigate("/");
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
