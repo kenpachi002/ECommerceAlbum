@@ -139,4 +139,8 @@ app.post("/api/orders", async (request, response, next) => {
 
 app.use((error, _request, response, _next) => { console.error(error); response.status(error.status || 500).json({ message: error.status ? error.message : "Internal server error" }); });
 
-app.listen(port, () => console.log(`Groove & Co. API listening on http://localhost:${port}`));
+if (process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1") {
+  app.listen(port, () => console.log(`Groove & Co. API listening on http://localhost:${port}`));
+}
+
+export default app;
