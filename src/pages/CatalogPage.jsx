@@ -124,7 +124,6 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
   useEffect(() => {
     if (!debouncedSearch || debouncedSearch.length < 2) {
       setItunesResults([]);
-      setShowItunes(false);
       return;
     }
 
