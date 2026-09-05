@@ -67,6 +67,14 @@
 .nav-link:hover { color: var(--color-cream); }
 .nav-link:hover::after { width: 100%; }
 
+.header-logout-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
 .nav-badge {
   display: inline-flex;
   align-items: center;

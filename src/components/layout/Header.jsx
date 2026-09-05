@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, ShoppingBag, Heart, Menu, X, User } from "lucide-react";
+import { Search, ShoppingBag, Heart, Menu, X } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 
 export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchChange }) {
@@ -40,12 +40,6 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
   const closeSearch = () => { setSearchOpen(false); onSearchChange(""); };
   const toggleNav = () => setNavOpen((o) => !o);
 
-  const navLinks = [
-    { label: "Catalog", href: "/#catalog" },
-    { label: "New Arrivals", href: "/#catalog" },
-    { label: "Wishlist", to: "/wishlist" },
-  ];
-
   return (
     <>
       <header className={`site-header${scrolled ? " is-scrolled" : ""}`} role="banner">
@@ -62,27 +56,24 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
 
           {/* Desktop Nav */}
           <nav className="nav-links-desktop" aria-label="Main navigation">
-            {navLinks.map((link) =>
-              link.to ? (
-                <Link key={link.label} to={link.to} className="nav-link">
-                  {link.label}
-                  {link.label === "Wishlist" && wishlistCount > 0 && (
-                    <span className="nav-badge">{wishlistCount}</span>
-                  )}
-                </Link>
-              ) : (
-                <a key={link.label} href={link.href} className="nav-link">{link.label}</a>
-              )
+            <a href="/#catalog" className="nav-link">Catalog</a>
+            <a href="/#catalog" className="nav-link">New Arrivals</a>
+            <Link to="/wishlist" className="nav-link">
+              Wishlist
+              {wishlistCount > 0 && <span className="nav-badge">{wishlistCount}</span>}
+            </Link>
+            {/* My Orders — only when logged in, sits naturally beside Wishlist */}
+            {user && (
+              <Link to="/orders" className="nav-link">My Orders</Link>
             )}
           </nav>
 
           {/* Actions */}
           <div className="header-actions">
             {user ? (
-              <>
-                <Link to="/orders" className="nav-link auth-link">My Orders</Link>
-                <button className="nav-link auth-link" onClick={() => { logout(); navigate("/"); }}>Log out</button>
-              </>
+              <button className="nav-link header-logout-btn" onClick={() => { logout(); navigate("/"); }}>
+                Log out
+              </button>
             ) : (
               <Link to="/login" className="nav-link auth-link">Log in</Link>
             )}
@@ -129,24 +120,24 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
         {/* Mobile Nav Drawer */}
         {navOpen && (
           <nav className="mobile-nav glass" aria-label="Mobile navigation">
-            {navLinks.map((link) =>
-              link.to ? (
-                <Link key={link.label} to={link.to} className="mobile-nav__link" onClick={() => setNavOpen(false)}>
-                  {link.label}
-                  {link.label === "Wishlist" && wishlistCount > 0 && <span className="nav-badge">{wishlistCount}</span>}
-                </Link>
-              ) : (
-                <a key={link.label} href={link.href} className="mobile-nav__link" onClick={() => setNavOpen(false)}>{link.label}</a>
-              )
+            <a href="/#catalog" className="mobile-nav__link" onClick={() => setNavOpen(false)}>Catalog</a>
+            <a href="/#catalog" className="mobile-nav__link" onClick={() => setNavOpen(false)}>New Arrivals</a>
+            <Link to="/wishlist" className="mobile-nav__link" onClick={() => setNavOpen(false)}>
+              Wishlist
+              {wishlistCount > 0 && <span className="nav-badge">{wishlistCount}</span>}
+            </Link>
+            {user && (
+              <Link to="/orders" className="mobile-nav__link" onClick={() => setNavOpen(false)}>My Orders</Link>
             )}
             <div className="filter-divider" style={{ margin: "var(--sp-2) 0", background: "var(--color-hairline)" }} />
             {user ? (
-              <>
-                <Link to="/orders" className="mobile-nav__link" onClick={() => setNavOpen(false)}>My Orders</Link>
-                <button className="mobile-nav__link" style={{ textAlign: "left", width: "100%", background: "none", border: "none" }} onClick={() => { logout(); setNavOpen(false); navigate("/"); }}>
-                  Log out
-                </button>
-              </>
+              <button
+                className="mobile-nav__link header-logout-btn"
+                style={{ textAlign: "left", width: "100%" }}
+                onClick={() => { logout(); setNavOpen(false); navigate("/"); }}
+              >
+                Log out
+              </button>
             ) : (
               <Link to="/login" className="mobile-nav__link" onClick={() => setNavOpen(false)}>Log in</Link>
             )}
