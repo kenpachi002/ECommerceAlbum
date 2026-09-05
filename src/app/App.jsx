@@ -36,6 +36,13 @@ function GuestRoute({ children }) {
   return children;
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 
 function StoreShell() {
   const [search, setSearch] = useState("");
@@ -170,6 +177,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <StoreShell />
       </BrowserRouter>
     </AuthProvider>
