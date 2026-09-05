@@ -74,6 +74,8 @@ RESEND_API_KEY=your_resend_api_key_here  # For password reset emails
 FRONTEND_URL=http://localhost:5173        # Set to your production URL in prod
 ```
 
+> **Note on Resend:** If you are using a free Resend account without a verified custom domain, password reset emails will **only** be delivered to your own verified email address. To test reset flows with other addresses, you must verify a custom domain in Resend.
+
 ### 4. Set up the database schema
 ```bash
 npm run db:setup

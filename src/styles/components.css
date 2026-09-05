@@ -1042,7 +1042,7 @@
   transition: color var(--dur-fast);
 }
 .product-detail__artist:hover { color: #f0b944; }
-.product-detail__genre-badge { /* uses .badge styles */ }
+
 
 .product-detail__description {
   color: var(--color-muted);
