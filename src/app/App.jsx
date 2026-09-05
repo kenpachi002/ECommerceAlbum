@@ -7,14 +7,11 @@ import { useCart } from "../features/cart/useCart";
 import { useWishlist } from "../features/wishlist/useWishlist";
 import CatalogPage from "../pages/CatalogPage";
 import ProductPage from "../pages/ProductPage";
-import CheckoutPage from "../pages/CheckoutPage";
 import OrderConfirmationPage from "../pages/OrderConfirmationPage";
 import WishlistPage from "../pages/WishlistPage";
 import ArtistPage from "../pages/ArtistPage";
-import LoginPage from "../pages/LoginPage";
-import RegisterPage from "../pages/RegisterPage";
-import ForgotPasswordPage from "../pages/ForgotPasswordPage";
-import ResetPasswordPage from "../pages/ResetPasswordPage";
+import AuthPage from "../pages/AuthPage";
+import CheckoutPage from "../pages/CheckoutPage";
 import { AuthProvider, useAuth } from "../features/auth/AuthContext";
 import "../styles/globals.css";
 import "../styles/components.css";
@@ -135,10 +132,10 @@ function StoreShell() {
             <Route path="/artists/:artistId" element={<ArtistPage onAdd={addToCart} wishlist={wishlist} />} />
 
             {/* Guest only: redirect to / if already logged in */}
-            <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
-            <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
-            <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/login" element={<GuestRoute><AuthPage /></GuestRoute>} />
+            <Route path="/register" element={<GuestRoute><AuthPage /></GuestRoute>} />
+            <Route path="/forgot-password" element={<GuestRoute><AuthPage /></GuestRoute>} />
+            <Route path="/reset-password" element={<AuthPage />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
