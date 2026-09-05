@@ -7,12 +7,26 @@ import { query } from "./db.js";
 
 const router = Router();
 const SALT_ROUNDS = 12;
-const JWT_SECRET = process.env.JWT_SECRET || "groove-dev-secret";
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = "7d";
+
+// Guard: crash loudly in production if JWT_SECRET is not set.
+// A missing secret means all tokens would be signed with 'undefined', making auth insecure.
+if (!JWT_SECRET) {
+  const isProd = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+  if (isProd) {
+    console.error("[FATAL] JWT_SECRET environment variable is not set. Refusing to start in production.");
+    process.exit(1);
+  } else {
+    console.warn("[WARN] JWT_SECRET is not set. Using insecure fallback — OK for dev only.");
+  }
+}
+
+const _JWT_SECRET = JWT_SECRET || "groove-dev-secret";
 
 // ─── Helpers ────────────────────────────────────────────────────
 function signToken(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign({ userId }, _JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
 function safeUser(row) {
@@ -26,7 +40,7 @@ export function authenticate(req, res, next) {
     return res.status(401).json({ message: "Not authenticated" });
   }
   try {
-    const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    const payload = jwt.verify(header.slice(7), _JWT_SECRET);
     req.userId = payload.userId;
     next();
   } catch {

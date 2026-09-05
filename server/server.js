@@ -1,16 +1,66 @@
+import "dotenv/config";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import express from "express";
 import { pool, query } from "./db.js";
 import authRouter from "./auth.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
+const isProd = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
 
-app.use(cors());
+// ─── Security Headers (Helmet) ───────────────────────────────────────────────
+app.use(helmet());
+
+// ─── CORS ────────────────────────────────────────────────────────────────────
+// In production, only allow requests from the configured frontend origin.
+// In development, also allow localhost Vite dev server.
+const allowedOrigins = [
+  process.env.FRONTEND_URL,          // e.g. https://groove-and-co.vercel.app
+  "http://localhost:5173",            // Vite dev
+  "http://localhost:4173",            // Vite preview
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow server-to-server requests (no origin) and allowed origins
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin '${origin}' not allowed`));
+      }
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// Auth routes
-app.use("/api/auth", authRouter);
+// ─── Rate Limiters ───────────────────────────────────────────────────────────
+// General limiter: 100 requests per 15 minutes (products, iTunes search, etc.)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." },
+});
+
+// Auth limiter: 5 requests per 15 minutes (login, register, forgot-password)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many authentication attempts, please try again in 15 minutes." },
+});
+
+app.use("/api", generalLimiter);
+
+// Auth routes — apply the strict auth rate limiter
+app.use("/api/auth", authLimiter, authRouter);
 
 // Returns ONE row per album (cheapest variant), avoiding duplicates in the grid.
 const productSelect = `
@@ -149,7 +199,24 @@ app.post("/api/orders", async (request, response, next) => {
   } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
 });
 
-app.use((error, _request, response, _next) => { console.error(error); response.status(error.status || 500).json({ message: error.status ? error.message : "Internal server error" }); });
+// ─── Error Handler ───────────────────────────────────────────────────────────
+// In production: never leak stack traces or internal error messages.
+// In development: show the full error message for debugging.
+app.use((error, _request, response, _next) => {
+  console.error(error);
+  if (isProd) {
+    // Only expose message for known client errors (4xx), hide everything else
+    const status = error.status || 500;
+    response.status(status).json({
+      message: status < 500 ? error.message : "Internal server error",
+    });
+  } else {
+    response.status(error.status || 500).json({
+      message: error.message || "Internal server error",
+      stack: error.stack,
+    });
+  }
+});
 
 if (process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1") {
   app.listen(port, () => console.log(`Groove & Co. API listening on http://localhost:${port}`));
