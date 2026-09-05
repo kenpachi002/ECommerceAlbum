@@ -12,6 +12,7 @@ import WishlistPage from "../pages/WishlistPage";
 import ArtistPage from "../pages/ArtistPage";
 import AuthPage from "../pages/AuthPage";
 import CheckoutPage from "../pages/CheckoutPage";
+import OrdersPage from "../pages/OrdersPage";
 import { AuthProvider, useAuth } from "../features/auth/AuthContext";
 import "../styles/globals.css";
 import "../styles/components.css";
@@ -130,6 +131,14 @@ function StoreShell() {
 
             <Route path="/wishlist" element={<WishlistPage wishlist={wishlist} onAdd={addToCart} />} />
             <Route path="/artists/:artistId" element={<ArtistPage onAdd={addToCart} wishlist={wishlist} />} />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute>
+                  <OrdersPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Guest only: redirect to / if already logged in */}
             <Route path="/login" element={<GuestRoute><AuthPage /></GuestRoute>} />

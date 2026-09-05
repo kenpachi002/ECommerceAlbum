@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, MapPin, Truck, ShieldCheck, Info, Package, CheckCircle } from "lucide-react";
+import { ArrowLeft, CreditCard, MapPin, Truck, ShieldCheck, Package, CheckCircle, Loader2 } from "lucide-react";
 import { RecordArt } from "../components/catalog/RecordArt";
 import { useAuth } from "../features/auth/AuthContext";
 
@@ -148,29 +148,29 @@ export default function CheckoutPage({ cart, onCheckout }) {
                 <div className="form-field">
                   <label htmlFor="ch-first">First name</label>
                   <input id="ch-first" type="text" value={form.firstName} onChange={set("firstName")}
-                    placeholder="Jane" required autoComplete="given-name" />
+                    placeholder="Your first name" required autoComplete="given-name" />
                 </div>
                 <div className="form-field">
                   <label htmlFor="ch-last">Last name</label>
                   <input id="ch-last" type="text" value={form.lastName} onChange={set("lastName")}
-                    placeholder="Smith" required autoComplete="family-name" />
+                    placeholder="Your last name" required autoComplete="family-name" />
                 </div>
               </div>
               <div className="form-field">
                 <label htmlFor="ch-address">Street address</label>
                 <input id="ch-address" type="text" value={form.address} onChange={set("address")}
-                  placeholder="42 Vinyl Lane" required autoComplete="street-address" />
+                  placeholder="Your street address" required autoComplete="street-address" />
               </div>
               <div className="form-row">
                 <div className="form-field">
                   <label htmlFor="ch-city">City</label>
                   <input id="ch-city" type="text" value={form.city} onChange={set("city")}
-                    placeholder="Kolkata" required autoComplete="address-level2" />
+                    placeholder="Your city" required autoComplete="address-level2" />
                 </div>
                 <div className="form-field">
                   <label htmlFor="ch-zip">Postcode</label>
                   <input id="ch-zip" type="text" value={form.postcode} onChange={set("postcode")}
-                    placeholder="700001" required autoComplete="postal-code" />
+                    placeholder="Your postcode" required autoComplete="postal-code" />
                 </div>
               </div>
               <div className="form-field">
@@ -206,7 +206,7 @@ export default function CheckoutPage({ cart, onCheckout }) {
               <div className="form-field">
                 <label htmlFor="ch-card-name">Cardholder name</label>
                 <input id="ch-card-name" type="text" value={form.cardName} onChange={set("cardName")}
-                  placeholder="Jane Smith" autoComplete="cc-name" />
+                  placeholder="Your full name" autoComplete="cc-name" />
               </div>
               <div className="form-field">
                 <label htmlFor="ch-card-num">Card number</label>
@@ -228,7 +228,13 @@ export default function CheckoutPage({ cart, onCheckout }) {
               </div>
               <button type="submit" className="checkout-v2__submit checkout-v2__submit--pay" disabled={submitting}>
                 {submitting ? (
-                  <span className="auth-spinner" />
+                  <span className="checkout-pay-loading">
+                    <span className="checkout-pay-loading__bar" />
+                    <span className="checkout-pay-loading__text">
+                      <Loader2 size={15} className="spin" />
+                      Confirming order…
+                    </span>
+                  </span>
                 ) : (
                   <><ShieldCheck size={16} /> <span>Complete Purchase · ${total.toFixed(2)}</span></>
                 )}

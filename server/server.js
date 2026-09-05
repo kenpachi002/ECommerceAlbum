@@ -4,7 +4,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import express from "express";
 import { pool, query } from "./db.js";
-import authRouter from "./auth.js";
+import authRouter, { authenticate } from "./auth.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -198,6 +198,85 @@ app.post("/api/orders", async (request, response, next) => {
     response.status(201).json({ ...orderResult.rows[0], total: orderResult.rows[0].total_cents / 100 });
   } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
 });
+
+// ─── GET /api/orders/my — fetch authenticated user's order history ─────────
+app.get("/api/orders/my", authenticate, async (request, response, next) => {
+  try {
+    // Resolve the user's email from their userId
+    const userResult = await query("SELECT email FROM users WHERE id = $1", [request.userId]);
+    if (!userResult.rowCount) return response.status(404).json({ message: "User not found" });
+    const email = userResult.rows[0].email;
+
+    const ordersResult = await query(
+      `SELECT o.id, o.order_number, o.status, o.total_cents, o.subtotal_cents,
+              o.shipping_address, o.created_at,
+              json_agg(json_build_object(
+                'id', oi.id,
+                'albumTitle', oi.album_title,
+                'format', oi.format,
+                'quantity', oi.quantity,
+                'unitPrice', oi.unit_price_cents / 100.0
+              ) ORDER BY oi.id) AS items
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.id
+       WHERE o.email = $1
+       GROUP BY o.id
+       ORDER BY o.created_at DESC`,
+      [email]
+    );
+
+    const orders = ordersResult.rows.map((o) => ({
+      ...o,
+      total: o.total_cents / 100,
+      subtotal: o.subtotal_cents / 100,
+    }));
+
+    response.json({ orders });
+  } catch (error) { next(error); }
+});
+
+// ─── PATCH /api/orders/:id/cancel — cancel a pending/paid order ──────────
+app.patch("/api/orders/:id/cancel", authenticate, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    // Verify the order belongs to the authenticated user
+    const userResult = await query("SELECT email FROM users WHERE id = $1", [request.userId]);
+    if (!userResult.rowCount) return response.status(404).json({ message: "User not found" });
+    const email = userResult.rows[0].email;
+
+    const orderResult = await client.query(
+      "SELECT id, status FROM orders WHERE id = $1 AND email = $2",
+      [request.params.id, email]
+    );
+    if (!orderResult.rowCount) return response.status(404).json({ message: "Order not found" });
+
+    const order = orderResult.rows[0];
+    if (!["pending", "paid"].includes(order.status)) {
+      return response.status(409).json({ message: `Order cannot be cancelled — current status: ${order.status}` });
+    }
+
+    await client.query("BEGIN");
+    // Restore stock for all items in this order
+    const items = await client.query(
+      "SELECT variant_id, quantity FROM order_items WHERE order_id = $1",
+      [order.id]
+    );
+    for (const item of items.rows) {
+      await client.query(
+        "UPDATE product_variants SET stock_quantity = stock_quantity + $1 WHERE id = $2",
+        [item.quantity, item.variant_id]
+      );
+    }
+    const updated = await client.query(
+      "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING id, order_number, status",
+      [order.id]
+    );
+    await client.query("COMMIT");
+    response.json(updated.rows[0]);
+  } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
+});
+
+
 
 // ─── Error Handler ───────────────────────────────────────────────────────────
 // In production: never leak stack traces or internal error messages.

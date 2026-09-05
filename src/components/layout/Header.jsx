@@ -79,7 +79,10 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
           {/* Actions */}
           <div className="header-actions">
             {user ? (
-              <button className="nav-link auth-link" onClick={() => { logout(); navigate("/"); }}>Log out</button>
+              <>
+                <Link to="/orders" className="nav-link auth-link">My Orders</Link>
+                <button className="nav-link auth-link" onClick={() => { logout(); navigate("/"); }}>Log out</button>
+              </>
             ) : (
               <Link to="/login" className="nav-link auth-link">Log in</Link>
             )}
@@ -138,9 +141,12 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
             )}
             <div className="filter-divider" style={{ margin: "var(--sp-2) 0", background: "var(--color-hairline)" }} />
             {user ? (
-              <button className="mobile-nav__link" style={{ textAlign: "left", width: "100%", background: "none", border: "none" }} onClick={() => { logout(); setNavOpen(false); navigate("/"); }}>
-                Log out
-              </button>
+              <>
+                <Link to="/orders" className="mobile-nav__link" onClick={() => setNavOpen(false)}>My Orders</Link>
+                <button className="mobile-nav__link" style={{ textAlign: "left", width: "100%", background: "none", border: "none" }} onClick={() => { logout(); setNavOpen(false); navigate("/"); }}>
+                  Log out
+                </button>
+              </>
             ) : (
               <Link to="/login" className="mobile-nav__link" onClick={() => setNavOpen(false)}>Log in</Link>
             )}
