@@ -10,6 +10,11 @@ import { SkeletonGrid } from "../components/ui/SkeletonCard";
 
 const FORMAT_PRICES = { Vinyl: 0, CD: -4, Cassette: -2, Digital: -10 };
 
+const deterministicPrice = (seed, min, max) => {
+  const hash = Math.abs((seed * 2654435761) >>> 0);
+  return min + (hash % (max - min + 1));
+};
+
 export default function ProductPage({ onAdd, wishlist }) {
   const { productId } = useParams();
   const [product, setProduct] = useState(null);
@@ -34,6 +39,43 @@ export default function ProductPage({ onAdd, wishlist }) {
       })
       .catch(() => {
         if (!cancelled) {
+          if (productId.startsWith("IT-")) {
+            const itunesId = parseInt(productId.replace("IT-", ""), 10);
+            fetch(`https://itunes.apple.com/lookup?id=${itunesId}&entity=album`)
+              .then(res => res.json())
+              .then(data => {
+                if (!cancelled) {
+                  if (data.results && data.results.length > 0) {
+                    const r = data.results[0];
+                    const artworkUrl = r.artworkUrl100?.replace("100x100bb", "600x600bb") || null;
+                    const year = r.releaseDate ? new Date(r.releaseDate).getFullYear() : null;
+                    const priceCents = deterministicPrice(itunesId, 2200, 4200);
+                    const mockProduct = {
+                      id: productId,
+                      title: r.collectionName,
+                      artist: r.artistName,
+                      genre: r.primaryGenreName || "Other",
+                      format: "Vinyl",
+                      year,
+                      price: priceCents / 100,
+                      palette: Math.abs(itunesId) % 12,
+                      artworkUrl,
+                      itunes_id: itunesId,
+                      description: `${r.collectionName} by ${r.artistName}. ${r.primaryGenreName || "Music"}, ${year}.`,
+                      variants: [{ format: "Vinyl", price: priceCents / 100, inStock: true, variantId: `${productId}-v1` }]
+                    };
+                    setProduct(mockProduct);
+                    setSelectedFormat("Vinyl");
+                  }
+                  setLoading(false);
+                }
+              })
+              .catch(() => {
+                if (!cancelled) setLoading(false);
+              });
+            return;
+          }
+
           // Fallback: find in mock data and synthesize variants
           const mock = PRODUCTS.find((p) => p.id === productId);
           if (mock) {

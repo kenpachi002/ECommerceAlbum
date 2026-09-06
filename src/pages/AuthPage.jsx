@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, ArrowRight, CheckCircle, Fingerprint, KeyRound, Mail, Lock, User } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
+import { RecordArt } from "../components/catalog/RecordArt";
 
 export default function AuthPage() {
   const { login, register, forgotPassword, resetPassword } = useAuth();
@@ -94,30 +95,8 @@ export default function AuthPage() {
           </div>
 
           {/* Vinyl + Sleeve art */}
-          <div className="stitch-auth__vinyl-art">
-            {/* Vinyl disc */}
-            <div className="stitch-auth__disc">
-              <div className="stitch-auth__disc-inner">
-                <div className="stitch-auth__disc-grooves" />
-                <div className="stitch-auth__disc-label">
-                  <span className="stitch-auth__disc-brand">Groove & Co</span>
-                  <div className="stitch-auth__disc-hole" />
-                  <span className="stitch-auth__disc-rpm">33⅓ RPM</span>
-                </div>
-              </div>
-            </div>
-            {/* Album cover */}
-            <div className="stitch-auth__cover">
-              <div className="stitch-auth__cover-overlay" />
-              <div className="stitch-auth__cover-top">
-                <span className="stitch-auth__cover-badge">LIMITED MASTER</span>
-                <span className="stitch-auth__cover-title">VAULT 001</span>
-              </div>
-              <div className="stitch-auth__cover-bottom">
-                <span>180G VIRGIN VINYL</span>
-                <span className="stitch-auth__cover-quality">24-BIT / 192KHZ</span>
-              </div>
-            </div>
+          <div className="stitch-auth__vinyl-art" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <RecordArt palette={7} spinning={true} size="280px" />
           </div>
 
           {/* Bottom tagline */}
