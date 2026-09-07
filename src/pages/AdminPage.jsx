@@ -55,7 +55,8 @@ function AdminPage() {
     try {
       const updated = await apiClient.updateOrderStatus(orderId, status, deliveryDueAt);
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status, deliveryDueAt: updated.delivery_due_at } : o));
-    } catch { setError("Failed to update order"); }
+      return updated;
+    } catch (error) { setError(error.message || "Failed to update order"); throw error; }
   };
 
   const handleStockChange = async (variantId, stock) => {

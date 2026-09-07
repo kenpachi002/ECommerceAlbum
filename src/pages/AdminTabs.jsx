@@ -3,6 +3,23 @@ import { Users, Package, DollarSign, AlertCircle, ChevronDown, ChevronUp, Search
 
 export function OrdersTab({ orders, onStatusChange }) {
   const [expanded, setExpanded] = useState(null);
+  const [dueDates, setDueDates] = useState({});
+  const [savingDueDate, setSavingDueDate] = useState(null);
+  const [savedDueDate, setSavedDueDate] = useState(null);
+
+  const dueDateValue = (order) => dueDates[order.id] ?? (order.deliveryDueAt ? new Date(order.deliveryDueAt).toISOString().slice(0, 10) : "");
+
+  const saveDueDate = async (order) => {
+    setSavingDueDate(order.id);
+    setSavedDueDate(null);
+    try {
+      await onStatusChange(order.id, order.status, dueDateValue(order) || null);
+      setSavedDueDate(order.id);
+    } finally {
+      setSavingDueDate(null);
+    }
+  };
+
   return (
     <div className="admin-orders">
       <div className="admin-toolbar"><span className="admin-count">{orders.length} orders</span></div>
@@ -27,13 +44,16 @@ export function OrdersTab({ orders, onStatusChange }) {
                 {expanded === order.id && (
                   <tr><td colSpan={6} className="admin-order-items">
                     <div className="admin-order-items__controls">
-                      <label>Delivery due
+                      <label className="admin-due-date-field">Delivery due
                         <input
                           type="date"
-                          defaultValue={order.deliveryDueAt ? new Date(order.deliveryDueAt).toISOString().slice(0, 10) : ""}
-                          onChange={(event) => onStatusChange(order.id, order.status, event.target.value || null)}
+                          value={dueDateValue(order)}
+                          onChange={(event) => { setDueDates((current) => ({ ...current, [order.id]: event.target.value })); setSavedDueDate(null); }}
                         />
                       </label>
+                      <button className="admin-save-date" type="button" onClick={() => saveDueDate(order)} disabled={savingDueDate === order.id}>
+                        {savingDueDate === order.id ? "Saving..." : savedDueDate === order.id ? "Saved" : "Save date"}
+                      </button>
                     </div>
                     {order.items?.map((item, i) => (<span key={i} className="admin-order-chip">{item.albumTitle} × {item.quantity}</span>))}
                   </td></tr>

@@ -2489,7 +2489,14 @@
 .admin-status-select--pending { color: var(--color-gold); }
 .admin-status-select--paid, .admin-status-select--delivered { color: var(--aurora-teal); }
 .admin-status-select--cancelled { color: var(--color-danger); }
-.admin-order-items { padding: var(--sp-3) var(--sp-4); background: rgba(255,255,255,0.02); }
+.admin-order-items { padding: var(--sp-4); background: rgba(255,255,255,0.02); }
+.admin-order-items__controls { display: flex; align-items: end; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.admin-due-date-field { display: flex; flex-direction: column; gap: 6px; color: var(--color-muted); font: 600 var(--text-xs) var(--font-mono); text-transform: uppercase; letter-spacing: 0.6px; }
+.admin-due-date-field input { min-height: 36px; padding: 0 var(--sp-3); border: 1px solid rgba(227,168,59,0.45); border-radius: var(--radius-sm); background: var(--color-surface-solid); color: var(--color-cream); color-scheme: dark; font: 500 var(--text-sm) var(--font-mono); }
+.admin-due-date-field input:focus { outline: 2px solid rgba(45,212,191,0.45); outline-offset: 2px; }
+.admin-save-date { min-height: 36px; padding: 0 var(--sp-4); border: 1px solid rgba(45,212,191,0.4); border-radius: var(--radius-sm); background: rgba(45,212,191,0.1); color: var(--aurora-teal); font: 600 var(--text-xs) var(--font-mono); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }
+.admin-save-date:hover:not(:disabled) { background: rgba(45,212,191,0.18); border-color: var(--aurora-teal); }
+.admin-save-date:disabled { opacity: 0.65; cursor: wait; }
 .admin-order-chip { display: inline-flex; padding: 2px 8px; margin: 2px; border-radius: var(--radius-sm); background: var(--aurora-violet-dim); color: #B49EF7; font: var(--text-xs) var(--font-mono); }
 .admin-product-cell { display: flex; flex-direction: column; }
 .admin-product__title { display: block; color: var(--color-cream); font-weight: 500; }
