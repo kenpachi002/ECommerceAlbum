@@ -6,6 +6,7 @@ import { ProductCard } from "../components/catalog/ProductCard";
 import { SkeletonGrid } from "../components/ui/SkeletonCard";
 import { EmptyState } from "../components/ui/EmptyState";
 import { GENRES, FORMATS } from "../data/mockProducts";
+import { apiClient } from "../lib/apiClient";
 
 const COLLECTIONS = ["All records", "New Arrivals", "Bestsellers", "Staff Picks"];
 const STAFF_PICKS = ["GR-002", "GR-006", "GR-009"];
@@ -57,15 +58,7 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
     setOffset(0);
     setHasMore(false);
 
-    const params = new URLSearchParams();
-    if (normalizedSearch) params.append("search", normalizedSearch);
-    if (genre !== "All") params.append("genre", genre);
-    if (format !== "All") params.append("format", format);
-    params.append("limit", PAGE_SIZE);
-    params.append("offset", "0");
-
-    fetch(`/api/products?${params}`)
-      .then(res => res.ok ? res.json() : Promise.reject(res.status))
+        apiClient.getProducts({ search: normalizedSearch, genre: genre !== "All" ? genre : undefined, format: format !== "All" ? format : undefined, limit: PAGE_SIZE, offset: 0 })
       .then(data => {
         if (!cancelled) {
           setProducts(data.products || []);
@@ -85,15 +78,14 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
   // ── Load more handler ─────────────────────────────────────────────────────
   async function loadMore() {
     setLoadingMore(true);
-    const params = new URLSearchParams();
-    if (normalizedSearch) params.append("search", normalizedSearch);
-    if (genre !== "All") params.append("genre", genre);
-    if (format !== "All") params.append("format", format);
-    params.append("limit", PAGE_SIZE);
-    params.append("offset", offset);
     try {
-      const res = await fetch(`/api/products?${params}`);
-      const data = await res.json();
+      const data = await apiClient.getProducts({
+        search: normalizedSearch || undefined,
+        genre: genre !== "All" ? genre : undefined,
+        format: format !== "All" ? format : undefined,
+        limit: PAGE_SIZE,
+        offset,
+      });
       setProducts(prev => [...prev, ...(data.products || [])]);
       setHasMore(data.hasMore || false);
       setOffset(o => o + PAGE_SIZE);
@@ -104,8 +96,7 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
 
   // ── Load filter counts (fetch all without pagination) ─────────────────
   useEffect(() => {
-    fetch("/api/products?limit=100&offset=0")
-      .then(r => r.json())
+    apiClient.getProducts({ limit: 100, offset: 0 })
       .then(data => {
         const all = data.products || [];
         const gc = { All: data.total || all.length };
@@ -130,8 +121,7 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
     let cancelled = false;
     setItunesLoading(true);
 
-    fetch(`/api/search/itunes?q=${encodeURIComponent(debouncedSearch)}`)
-      .then(r => r.json())
+    apiClient.itunesSearch(debouncedSearch)
       .then(data => {
         if (!cancelled) {
           setItunesResults(data.products || []);

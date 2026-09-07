@@ -7,6 +7,7 @@ import { RecordArt } from "../components/catalog/RecordArt";
 import { ArtworkZoom } from "../components/product/ArtworkZoom";
 import { RelatedAlbums } from "../components/product/RelatedAlbums";
 import { SkeletonGrid } from "../components/ui/SkeletonCard";
+import { apiClient } from "../lib/apiClient";
 
 const FORMAT_PRICES = { Vinyl: 0, CD: -4, Cassette: -2, Digital: -10 };
 
@@ -28,8 +29,7 @@ export default function ProductPage({ onAdd, wishlist }) {
     setLoading(true);
     setProduct(null);
 
-    fetch(`/api/products/${productId}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
+        apiClient.getProduct(productId)
       .then((data) => {
         if (!cancelled) {
           setProduct(data);

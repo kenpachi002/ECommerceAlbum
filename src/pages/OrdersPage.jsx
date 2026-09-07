@@ -5,6 +5,8 @@ import {
   Clock, CheckCircle, Truck, XCircle, AlertCircle, Loader2,
 } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
+import { DeliveryTracker } from "../components/orders/DeliveryTracker";
+import { apiClient } from "../lib/apiClient";
 
 const STATUS_META = {
   pending:    { label: "Pending",    icon: Clock,        color: "var(--color-gold)",   bg: "rgba(227,168,59,0.1)"  },
@@ -26,10 +28,12 @@ function StatusBadge({ status }) {
   );
 }
 
-function OrderCard({ order, onCancel }) {
+function OrderCard({ order, onCancel, onPay }) {
   const [expanded, setExpanded] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [cancelError, setCancelError] = useState(null);
+  const [payError, setPayError] = useState(null);
   const canCancel = ["pending", "paid"].includes(order.status);
   const addr = order.shipping_address;
 
@@ -43,6 +47,18 @@ function OrderCard({ order, onCancel }) {
       setCancelError(err.message);
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handlePay = async () => {
+    setPaying(true);
+    setPayError(null);
+    try {
+      await onPay(order.id);
+    } catch (err) {
+      setPayError(err.message);
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -70,6 +86,19 @@ function OrderCard({ order, onCancel }) {
       {/* Expanded Detail */}
       {expanded && (
         <div className="orders-card__body">
+          {/* Delivery Tracker */}
+          <DeliveryTracker
+            status={order.status}
+            timestamps={{
+              pendingAt: order.created_at,
+              paidAt: order.paid_at,
+              processingAt: order.processing_at,
+              shippedAt: order.shipped_at,
+              deliveredAt: order.delivered_at,
+              cancelledAt: order.cancelled_at,
+            }}
+            deliveryDueAt={order.delivery_due_at}
+          />
           {/* Items */}
           <div className="orders-card__items">
             {order.items.map((item) => (
@@ -113,7 +142,14 @@ function OrderCard({ order, onCancel }) {
             </div>
           </div>
 
-          {/* Cancel */}
+          {/* Payment and cancellation */}
+          {payError && <p className="orders-card__cancel-error">{payError}</p>}
+          {order.status === "pending" && (
+            <button className="orders-card__pay-btn" onClick={handlePay} disabled={paying}>
+              {paying ? <Loader2 size={14} className="spin" /> : <CheckCircle size={14} />}
+              {paying ? "Paying…" : "Pay now with wallet"}
+            </button>
+          )}
           {cancelError && <p className="orders-card__cancel-error">{cancelError}</p>}
           {canCancel && (
             <button
@@ -141,11 +177,7 @@ export default function OrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/orders/my", {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to load orders");
+            const data = await apiClient.getOrders();
       setOrders(data.orders);
     } catch (err) {
       setError(err.message);
@@ -156,24 +188,24 @@ export default function OrdersPage() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const handleCancel = useCallback(async (orderId) => {
-    const res = await fetch(`/api/orders/${orderId}/cancel`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${getToken()}` },
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Cancellation failed");
+    const handleCancel = useCallback(async (orderId) => {
+    await apiClient.cancelOrder(orderId);
     // Update local state optimistically
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: "cancelled" } : o))
     );
   }, [getToken]);
 
+    const handlePay = useCallback(async (orderId) => {
+      const paidOrder = await apiClient.payOrder(orderId);
+      setOrders((prev) => prev.map((order) => order.id === orderId ? { ...order, ...paidOrder } : order));
+    }, [getToken]);
+
   return (
     <div className="orders-page">
       {/* Header */}
       <div className="orders-page__header">
-        <Link className="orders-page__back" to="/">
+        <Link className="orders-page__back" to="/#catalog">
           <ArrowLeft size={15} /> Back to catalog
         </Link>
         <h1 className="orders-page__title">My Orders</h1>
@@ -208,7 +240,7 @@ export default function OrdersPage() {
       {!loading && !error && orders.length > 0 && (
         <div className="orders-page__list">
           {orders.map((order) => (
-            <OrderCard key={order.id} order={order} onCancel={handleCancel} />
+            <OrderCard key={order.id} order={order} onCancel={handleCancel} onPay={handlePay} />
           ))}
         </div>
       )}

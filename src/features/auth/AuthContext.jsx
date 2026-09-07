@@ -79,8 +79,10 @@ export function AuthProvider({ children }) {
 
   const getToken = useCallback(() => localStorage.getItem(TOKEN_KEY), []);
 
+  const isAdmin = user?.role === "admin";
+
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout, forgotPassword, resetPassword, getToken }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, register, login, logout, forgotPassword, resetPassword, getToken }}>
       {children}
     </AuthContext.Provider>
   );

@@ -14,6 +14,10 @@ import AuthPage from "../pages/AuthPage";
 import CheckoutPage from "../pages/CheckoutPage";
 import OrdersPage from "../pages/OrdersPage";
 import { AuthProvider, useAuth } from "../features/auth/AuthContext";
+import AdminPage from "../pages/AdminPage";
+import ProfilePage from "../pages/ProfilePage";
+import WalletPage from "../pages/WalletPage";
+import { apiClient } from "../lib/apiClient";
 import "../styles/globals.css";
 import "../styles/components.css";
 
@@ -36,11 +40,24 @@ function GuestRoute({ children }) {
   return children;
 }
 
+/** Only allows admin users. Redirects to home if not admin. */
+function AdminRoute({ children }) {
+  const { user, isAdmin, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return children;
+}
+
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+    if (hash) {
+      requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth" }));
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [pathname, hash]);
   return null;
 }
 
@@ -61,20 +78,12 @@ function StoreShell() {
 
   const handleCheckout = useCallback(async (customerData) => {
     try {
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer: { email: customerData.email },
-          shippingAddress: customerData.shippingAddress,
-          items: cart.items.map(item => ({ variantId: item.variantId, quantity: item.qty })),
-        }),
+      const order = await apiClient.createOrder({
+        customer: { email: customerData.email },
+        shippingAddress: customerData.shippingAddress,
+        paymentMethod: customerData.paymentMethod,
+        items: cart.items.map(item => ({ variantId: item.variantId, quantity: item.qty })),
       });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || "Order failed");
-      }
-      const order = await response.json();
       // Clear cart
       [...cart.items].forEach(item => cart.remove(item.id));
       setCartOpen(false);
@@ -152,6 +161,15 @@ function StoreShell() {
             <Route path="/register" element={<GuestRoute><AuthPage /></GuestRoute>} />
             <Route path="/forgot-password" element={<GuestRoute><AuthPage /></GuestRoute>} />
             <Route path="/reset-password" element={<AuthPage />} />
+
+            {/* Admin only */}
+            <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+
+            {/* Profile — logged in users */}
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+
+            {/* Wallet — logged in users */}
+            <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

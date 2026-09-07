@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, ShoppingBag, Heart, Menu, X } from "lucide-react";
+import { Search, ShoppingBag, Heart, Menu, X, User, Shield, Settings, Wallet } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 
 export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchChange }) {
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const searchRef = useRef(null);
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
 
   // Scroll shadow
   useEffect(() => {
@@ -36,6 +37,27 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
   useEffect(() => {
     if (searchOpen) setTimeout(() => searchRef.current?.focus(), 50);
   }, [searchOpen]);
+
+  // Close profile dropdown when clicking outside
+  const profileRef = useRef(null);
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    if (profileOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [profileOpen]);
+
+  // Close dropdowns on Escape
+  useEffect(() => {
+    const handleEscape = (e) => { if (e.key === "Escape") setProfileOpen(false); };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
 
   const closeSearch = () => { setSearchOpen(false); onSearchChange(""); };
   const toggleNav = () => setNavOpen((o) => !o);
@@ -66,17 +88,16 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
             {user && (
               <Link to="/orders" className="nav-link">My Orders</Link>
             )}
+            {/* Admin Dashboard — only for admin users */}
+            {isAdmin && (
+              <Link to="/admin" className="nav-link nav-link--admin">
+                <Shield size={13} /> Admin
+              </Link>
+            )}
           </nav>
 
           {/* Actions */}
           <div className="header-actions">
-            {user ? (
-              <button className="nav-link header-logout-btn" onClick={() => { logout(); navigate("/"); }}>
-                Log out
-              </button>
-            ) : (
-              <Link to="/login" className="nav-link auth-link">Log in</Link>
-            )}
             <button
               className={`icon-button search-trigger${searchOpen ? " is-active" : ""}`}
               onClick={() => setSearchOpen((o) => !o)}
@@ -93,6 +114,42 @@ export function Header({ cartCount, wishlistCount, onCartOpen, search, onSearchC
               <ShoppingBag size={19} />
               {cartCount > 0 && <span className="header-badge cart-badge">{cartCount}</span>}
             </button>
+            {user ? (
+              <div className="header-profile" ref={profileRef}>
+                <button
+                  className="header-profile__btn"
+                  onClick={() => setProfileOpen((o) => !o)}
+                  aria-label="Profile menu"
+                  aria-expanded={profileOpen}
+                >
+                  <span className="header-profile__avatar">
+                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                  </span>
+                </button>
+                {profileOpen && (
+                  <div className="header-profile__dropdown">
+                    <div className="header-profile__info">
+                      <span className="header-profile__name">{user.displayName || "User"}</span>
+                      <span className="header-profile__email">{user.email}</span>
+                      {isAdmin && <span className="header-profile__role">Admin</span>}
+                    </div>
+                    <div className="header-profile__divider" />
+                    <Link to="/profile" className="header-profile__item" onClick={() => setProfileOpen(false)}>
+                      <Settings size={14} /> Profile & Settings
+                    </Link>
+                    <Link to="/wallet" className="header-profile__item" onClick={() => setProfileOpen(false)}>
+                      <Wallet size={14} /> Wallet
+                    </Link>
+                    <div className="header-profile__divider" />
+                    <button className="header-profile__item header-profile__logout" onClick={() => { logout(); setProfileOpen(false); navigate("/"); }}>
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link to="/login" className="nav-link auth-link">Log in</Link>
+            )}
           </div>
         </div>
 

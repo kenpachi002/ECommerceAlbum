@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS orders (
   shipping_cents INT NOT NULL DEFAULT 0 CHECK (shipping_cents >= 0),
   total_cents INT NOT NULL CHECK (total_cents >= 0),
   shipping_address JSONB,
+  delivery_due_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

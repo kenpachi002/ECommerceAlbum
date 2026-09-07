@@ -7,6 +7,7 @@
     "dev": "vite --open",
     "server": "node server/server.js",
     "db:setup": "node server/setup-db.js",
+    "db:migrate": "node server/migrate.js",
     "db:seed-real": "node server/seed-real.js",
     "build": "vite build",
     "preview": "vite preview"

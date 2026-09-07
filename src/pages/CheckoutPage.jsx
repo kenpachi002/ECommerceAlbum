@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, CreditCard, MapPin, Truck, ShieldCheck, Package, CheckCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, MapPin, Truck, ShieldCheck, Package, CheckCircle, Loader2, Wallet } from "lucide-react";
 import { RecordArt } from "../components/catalog/RecordArt";
 import { useAuth } from "../features/auth/AuthContext";
+import { apiClient } from "../lib/apiClient";
 
 const COUNTRIES = [
   { code: "IN", name: "India" },
@@ -22,6 +23,22 @@ export default function CheckoutPage({ cart, onCheckout }) {
   const [step, setStep] = useState(1); // 1 = shipping, 2 = payment
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [paymentProgress, setPaymentProgress] = useState(0);
+  const [paymentPhase, setPaymentPhase] = useState("");
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState("card");
+  const progressRef = useRef(null);
+
+    // Fetch wallet balance on mount
+  useEffect(() => {
+    const fetchWallet = async () => {
+      try {
+        const data = await apiClient.getWallet();
+        setWalletBalance(data.balance || 0);
+      } catch { /* ignore */ }
+    };
+    fetchWallet();
+  }, []);
 
   const [form, setForm] = useState({
     email: user?.email || "",
@@ -58,6 +75,33 @@ export default function CheckoutPage({ cart, onCheckout }) {
     setForm((f) => ({ ...f, cardExpiry: formatted }));
   };
 
+  // Payment progress animation — returns a promise that resolves after animation completes
+  const runPaymentAnimation = () => {
+    return new Promise((resolve) => {
+      setPaymentProgress(0);
+      setPaymentPhase("Connecting...");
+      const phases = [
+        { pct: 12, label: "Connecting..." },
+        { pct: 30, label: "Validating..." },
+        { pct: 50, label: "Processing..." },
+        { pct: 70, label: "Confirming..." },
+        { pct: 88, label: "Finalizing..." },
+        { pct: 100, label: "Complete!" },
+      ];
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i < phases.length) {
+          setPaymentProgress(phases[i].pct);
+          setPaymentPhase(phases[i].label);
+          i++;
+        } else {
+          clearInterval(interval);
+          setTimeout(() => resolve(), 200);
+        }
+      }, 450);
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (step === 1) {
@@ -68,23 +112,31 @@ export default function CheckoutPage({ cart, onCheckout }) {
       setStep(2);
       return;
     }
-    // Step 2: Submit order
+    // Step 2: Submit order — run animation and API call together, wait for both
     setSubmitting(true);
     setError(null);
     try {
-      const order = await onCheckout({
-        email: form.email,
-        shippingAddress: {
-          firstName: form.firstName,
-          lastName: form.lastName,
-          address: form.address,
-          city: form.city,
-          postcode: form.postcode,
-          country: form.country,
-        },
-      });
-      navigate("/order-confirmation", { state: { order } });
+      const [order] = await Promise.all([
+        onCheckout({
+          email: form.email,
+          shippingAddress: {
+            firstName: form.firstName,
+            lastName: form.lastName,
+            address: form.address,
+            city: form.city,
+            postcode: form.postcode,
+            country: form.country,
+          },
+          paymentMethod,
+        }),
+        runPaymentAnimation(),
+      ]);
+      setTimeout(() => {
+        navigate("/order-confirmation", { state: { order } });
+      }, 300);
     } catch (err) {
+      setPaymentProgress(0);
+      setPaymentPhase("");
       setError(err.message || "Something went wrong. Please try again.");
       setSubmitting(false);
     }
@@ -195,6 +247,21 @@ export default function CheckoutPage({ cart, onCheckout }) {
                 <CreditCard size={18} />
                 <h2>Payment Details</h2>
               </div>
+
+              {/* Payment method selector */}
+              <div className="checkout-payment-methods">
+                <button type="button" className={`checkout-payment-btn${paymentMethod === "card" ? " is-active" : ""}`} onClick={() => setPaymentMethod("card")}>
+                  <CreditCard size={16} /> Card
+                </button>
+                <button type="button" className={`checkout-payment-btn${paymentMethod === "wallet" ? " is-active" : ""}`} onClick={() => setPaymentMethod("wallet")} disabled={walletBalance < total * 100}>
+                  <Wallet size={16} /> Wallet
+                  {walletBalance > 0 && <span className="checkout-payment-btn__balance">${(walletBalance / 100).toFixed(2)}</span>}
+                </button>
+              </div>
+              {paymentMethod === "wallet" && walletBalance < total * 100 && (
+                <div className="checkout-v2__error">Insufficient wallet balance. <Link to="/wallet">Add funds</Link></div>
+              )}
+
               <div className="checkout-v2__card-preview">
                 <div className="card-chip" />
                 <div className="card-number">{form.cardNumber || "•••• •••• •••• ••••"}</div>
@@ -226,17 +293,18 @@ export default function CheckoutPage({ cart, onCheckout }) {
                     placeholder="123" autoComplete="cc-csc" inputMode="numeric" />
                 </div>
               </div>
-              <button type="submit" className="checkout-v2__submit checkout-v2__submit--pay" disabled={submitting}>
+              <button type="submit" className="checkout-v2__submit checkout-v2__submit--pay" disabled={submitting || (paymentMethod === "wallet" && walletBalance < total * 100)}>
                 {submitting ? (
                   <span className="checkout-pay-loading">
-                    <span className="checkout-pay-loading__bar" />
+                    <span className="checkout-pay-loading__bar" style={{ width: `${paymentProgress}%` }} />
                     <span className="checkout-pay-loading__text">
                       <Loader2 size={15} className="spin" />
-                      Confirming order…
+                      {paymentPhase}
                     </span>
+                    <span className="checkout-pay-loading__pct">{paymentProgress}%</span>
                   </span>
                 ) : (
-                  <><ShieldCheck size={16} /> <span>Complete Purchase · ${total.toFixed(2)}</span></>
+                  <><ShieldCheck size={16} /> <span>{paymentMethod === "wallet" ? "Pay with Wallet" : "Complete Purchase"} · ${total.toFixed(2)}</span></>
                 )}
               </button>
             </div>

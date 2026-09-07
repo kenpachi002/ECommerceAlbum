@@ -10,8 +10,6 @@ const SALT_ROUNDS = 12;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = "7d";
 
-// Guard: crash loudly in production if JWT_SECRET is not set.
-// A missing secret means all tokens would be signed with 'undefined', making auth insecure.
 if (!JWT_SECRET) {
   const isProd = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
   if (isProd) {
@@ -25,12 +23,12 @@ if (!JWT_SECRET) {
 const _JWT_SECRET = JWT_SECRET || "groove-dev-secret";
 
 // ─── Helpers ────────────────────────────────────────────────────
-function signToken(userId) {
-  return jwt.sign({ userId }, _JWT_SECRET, { expiresIn: JWT_EXPIRES });
+function signToken(userId, role) {
+  return jwt.sign({ userId, role: role || "customer" }, _JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
 function safeUser(row) {
-  return { id: row.id, email: row.email, displayName: row.display_name, createdAt: row.created_at };
+  return { id: row.id, email: row.email, displayName: row.display_name, role: row.role || "customer", createdAt: row.created_at };
 }
 
 // ─── Middleware: authenticate ────────────────────────────────────
@@ -42,10 +40,19 @@ export function authenticate(req, res, next) {
   try {
     const payload = jwt.verify(header.slice(7), _JWT_SECRET);
     req.userId = payload.userId;
+    req.userRole = payload.role || "customer";
     next();
   } catch {
     res.status(401).json({ message: "Token invalid or expired" });
   }
+}
+
+// ─── Middleware: requireAdmin ───────────────────────────────────
+export function requireAdmin(req, res, next) {
+  if (req.userRole !== "admin") {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  next();
 }
 
 // ─── POST /api/auth/register ─────────────────────────────────────
@@ -72,7 +79,7 @@ router.post("/register", async (req, res, next) => {
     );
 
     const user = result.rows[0];
-    const token = signToken(user.id);
+    const token = signToken(user.id, user.role);
     res.status(201).json({ token, user: safeUser(user) });
   } catch (err) {
     next(err);
@@ -102,7 +109,7 @@ router.post("/login", async (req, res, next) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const token = signToken(user.id);
+    const token = signToken(user.id, user.role);
     res.json({ token, user: safeUser(user) });
   } catch (err) {
     next(err);
@@ -186,6 +193,41 @@ router.post("/forgot-password", async (req, res, next) => {
   }
 });
 
+// ─── PATCH /api/auth/me — update profile ────────────────────────
+router.patch("/me", authenticate, async (req, res, next) => {
+  try {
+    const { displayName, email } = req.body;
+    const updates = [];
+    const values = [];
+    if (displayName !== undefined) { values.push(displayName || null); updates.push(`display_name = $${values.length}`); }
+    if (email !== undefined) { values.push(email.toLowerCase()); updates.push(`email = $${values.length}`); }
+    if (updates.length === 0) return res.status(400).json({ message: "No fields to update" });
+    values.push(req.userId);
+    const result = await query(`UPDATE users SET ${updates.join(", ")} WHERE id = $${values.length} RETURNING *`, values);
+    res.json({ user: safeUser(result.rows[0]) });
+  } catch (err) {
+    if (err.code === "23505") return res.status(409).json({ message: "Email already in use" });
+    next(err);
+  }
+});
+
+// ─── POST /api/auth/change-password ────────────────────────────
+router.post("/change-password", authenticate, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ message: "Both passwords are required" });
+    if (newPassword.length < 8) return res.status(400).json({ message: "New password must be at least 8 characters" });
+    const result = await query("SELECT * FROM users WHERE id = $1", [req.userId]);
+    if (result.rowCount === 0) return res.status(404).json({ message: "User not found" });
+    const user = result.rows[0];
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, req.userId]);
+    res.json({ message: "Password changed successfully" });
+  } catch (err) { next(err); }
+});
+
 // ─── POST /api/auth/reset-password ──────────────────────────────
 router.post("/reset-password", async (req, res, next) => {
   try {
@@ -212,7 +254,7 @@ router.post("/reset-password", async (req, res, next) => {
       [passwordHash, result.rows[0].id]
     );
 
-    const jwtToken = signToken(updated.rows[0].id);
+    const jwtToken = signToken(updated.rows[0].id, updated.rows[0].role);
     res.json({ token: jwtToken, user: safeUser(updated.rows[0]), message: "Password updated successfully" });
   } catch (err) {
     next(err);

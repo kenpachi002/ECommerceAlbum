@@ -6,17 +6,19 @@ import { RecordArt } from "./RecordArt";
 export function ProductCard({ product, onAdd, wishlist }) {
   const [hover, setHover] = useState(false);
   const wished = wishlist?.has(product.id);
+  const isOutOfStock = product.inStock === false && !product.isPreorder;
 
   return (
     <article
-      className={`product-card${hover ? " is-hovered" : ""}`}
+      className={`product-card${hover ? " is-hovered" : ""}${isOutOfStock ? " is-sold-out" : ""}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
       {/* Ribbon badges */}
       <div className="product-card__ribbons">
-        {product.isNew && <span className="ribbon ribbon--new">New</span>}
-        {product.isBestseller && <span className="ribbon ribbon--hot">Bestseller</span>}
+        {isOutOfStock && <span className="ribbon ribbon--sold">Sold out</span>}
+        {product.isNew && !isOutOfStock && <span className="ribbon ribbon--new">New</span>}
+        {product.isBestseller && !isOutOfStock && <span className="ribbon ribbon--hot">Bestseller</span>}
         {product.isPreorder && <span className="ribbon ribbon--pre">Pre-order</span>}
       </div>
 
@@ -54,12 +56,13 @@ export function ProductCard({ product, onAdd, wishlist }) {
         <div className="product-card__footer">
           <p className="product-card__price">${product.price}</p>
           <button
-            className={`card-add-btn${hover ? " is-visible" : ""}`}
-            onClick={() => onAdd(product)}
-            aria-label={`Add ${product.title} to cart`}
+            className={`card-add-btn${hover ? " is-visible" : ""}${isOutOfStock ? " is-disabled" : ""}`}
+            onClick={() => !isOutOfStock && onAdd(product)}
+            disabled={isOutOfStock}
+            aria-label={isOutOfStock ? `${product.title} is sold out` : `Add ${product.title} to cart`}
           >
             <ShoppingBag size={13} />
-            Add to crate
+            {isOutOfStock ? "Sold out" : "Add to crate"}
           </button>
         </div>
       </div>

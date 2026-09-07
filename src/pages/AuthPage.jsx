@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import { Eye, EyeOff, ArrowRight, CheckCircle, Fingerprint, KeyRound, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, CheckCircle, Fingerprint, KeyRound, Mail, Lock, User, Shield, ShoppingBag } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { RecordArt } from "../components/catalog/RecordArt";
 
@@ -26,6 +26,7 @@ export default function AuthPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
+  const [loginRole, setLoginRole] = useState("customer");
 
   const set = (k) => (e) => { setForm((f) => ({ ...f, [k]: e.target.value })); setError(null); };
 
@@ -42,7 +43,16 @@ export default function AuthPage() {
   // ── Handlers ────────────────────────────────────────────────
   const handleLogin = async (e) => {
     e.preventDefault(); setError(null); setLoading(true);
-    try { await login({ email: form.email, password: form.password }); navigate(from, { replace: true }); }
+    try {
+      const user = await login({ email: form.email, password: form.password });
+      // Verify role selection
+      if (loginRole === "admin" && user?.role !== "admin") {
+        setError("You do not have admin access. Please sign in as a customer.");
+        setLoading(false);
+        return;
+      }
+      navigate(from, { replace: true });
+    }
     catch (err) { setError(err.message); } finally { setLoading(false); }
   };
   const handleRegister = async (e) => {
@@ -149,6 +159,18 @@ export default function AuthPage() {
           {success && <div className="stitch-auth__toast stitch-auth__toast--success"><CheckCircle size={15} /> {success}</div>}
 
           {/* ── SIGN IN ──────────────────────── */}
+          {/* Role Selector */}
+          {mode === "signin" && (
+            <div className="login-role-selector">
+              <button type="button" className={`login-role-btn${loginRole === "customer" ? " is-active" : ""}`} onClick={() => setLoginRole("customer")}>
+                <ShoppingBag size={15} /> Customer
+              </button>
+              <button type="button" className={`login-role-btn${loginRole === "admin" ? " is-active" : ""}`} onClick={() => setLoginRole("admin")}>
+                <Shield size={15} /> Admin
+              </button>
+            </div>
+          )}
+
           {mode === "signin" && (
             <form onSubmit={handleLogin} noValidate className="stitch-auth__fields" key="signin">
               <div className="stitch-field">
