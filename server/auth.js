@@ -48,11 +48,17 @@ export function authenticate(req, res, next) {
 }
 
 // ─── Middleware: requireAdmin ───────────────────────────────────
-export function requireAdmin(req, res, next) {
-  if (req.userRole !== "admin") {
-    return res.status(403).json({ message: "Admin access required" });
+export async function requireAdmin(req, res, next) {
+  try {
+    const result = await query("SELECT role FROM users WHERE id = $1", [req.userId]);
+    if (!result.rowCount || result.rows[0].role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    req.userRole = "admin";
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 }
 
 // ─── POST /api/auth/register ─────────────────────────────────────
