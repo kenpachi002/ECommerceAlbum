@@ -64,7 +64,7 @@ export default function AuthPage() {
   };
   const handleForgot = async (e) => {
     e.preventDefault(); setError(null); setLoading(true);
-    try { await forgotPassword(form.email); setSuccess("If this email exists, a reset link has been sent."); }
+    try { await forgotPassword(form.email); setSuccess("If this email belongs to an account, the reset request was processed. Delivery depends on email configuration; check spam or contact the store administrator if nothing arrives."); }
     catch (err) { setError(err.message); } finally { setLoading(false); }
   };
   const handleReset = async (e) => {

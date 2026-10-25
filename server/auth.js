@@ -185,33 +185,39 @@ router.post("/forgot-password", async (req, res, next) => {
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
     if (process.env.RESEND_API_KEY) {
-      const { Resend } = await import("resend");
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: "Groove & Co. <onboarding@resend.dev>", // default testing domain provided by Resend
-        to: email,
-        subject: "Password Reset for Groove & Co.",
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; color: #111;">
-            <h2>Groove & Co. Password Reset</h2>
-            <p>You requested a password reset. Click the button below to choose a new password.</p>
-            <p>
-              <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #7928CA; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
-                Reset Password
-              </a>
-            </p>
-            <p style="color: #666; font-size: 14px; margin-top: 20px;">
-              If you didn't request this, you can safely ignore this email.
-            </p>
-          </div>
-        `,
-      });
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const { error } = await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || "Groove & Co. <onboarding@resend.dev>",
+          to: email,
+          subject: "Password Reset for Groove & Co.",
+          html: `
+            <div style="font-family: sans-serif; padding: 20px; color: #111;">
+              <h2>Groove & Co. Password Reset</h2>
+              <p>You requested a password reset. Click the button below to choose a new password.</p>
+              <p>
+                <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #7928CA; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
+                  Reset Password
+                </a>
+              </p>
+              <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                If you didn't request this, you can safely ignore this email.
+              </p>
+            </div>
+          `,
+        });
+        if (error) {
+          console.error("Password reset email delivery failed:", error.message);
+        }
+      } catch (error) {
+        console.error("Password reset email delivery failed:", error.message);
+      }
     } else {
-      // Fallback to console if no API key is provided
+      // Local-only fallback when email delivery has not been configured.
       console.log("\n╔══════════════════════════════════════════════╗");
       console.log("║       PASSWORD RESET LINK (DEMO MODE)        ║");
       console.log("╠══════════════════════════════════════════════╣");
-      console.log(`║ Email: ${email}`);
       console.log(`║ Link:  ${resetUrl}`);
       console.log("║ (Set RESEND_API_KEY to send real emails)     ║");
       console.log("╚══════════════════════════════════════════════╝\n");
