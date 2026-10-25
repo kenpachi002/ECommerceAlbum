@@ -15,29 +15,81 @@ function AdminPage() {
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [databaseStatus, setDatabaseStatus] = useState(null);
+  const [inventoryComparison, setInventoryComparison] = useState(null);
+  const [comparingInventory, setComparingInventory] = useState(false);
+  const [syncingInventory, setSyncingInventory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-    const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, u, o, p] = await Promise.all([
+      const [s, u, o, p, db] = await Promise.all([
         apiClient.getAdminStats(),
         apiClient.listUsers(),
         apiClient.listOrders(),
         apiClient.listProducts(),
+        apiClient.getDatabaseStatus(),
       ]);
       setStats(s);
       setUsers(u.users || []);
       setOrders(o.orders || []);
       setProducts(p.products || []);
+      setDatabaseStatus(db);
     } catch (err) { setError(err.message); }
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-    const handleRoleChange = async (userId, newRole) => {
+  useEffect(() => {
+    const refreshStatus = async () => {
+      try {
+        setDatabaseStatus(await apiClient.getDatabaseStatus());
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+    const interval = setInterval(refreshStatus, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCompareInventory = async () => {
+    setComparingInventory(true);
+    try {
+      setInventoryComparison(await apiClient.compareLocalInventory());
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setComparingInventory(false);
+    }
+  };
+
+  const handleSyncInventory = async () => {
+    const changes = inventoryComparison?.changes || [];
+    if (!changes.length) return;
+    const confirmed = window.confirm(
+      `Update hosted stock for ${changes.length} matching variants using local values? Local-only and hosted-only variants will not be added or removed.`
+    );
+    if (!confirmed) return;
+
+    setSyncingInventory(true);
+    try {
+      const result = await apiClient.syncLocalInventory(changes);
+      setInventoryComparison(null);
+      setError(null);
+      await fetchData();
+      window.alert(`Updated hosted stock for ${result.updated} variants.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncingInventory(false);
+    }
+  };
+
+  const handleRoleChange = async (userId, newRole) => {
     try {
       await apiClient.updateUser(userId, { role: newRole });
       setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
@@ -85,6 +137,33 @@ function AdminPage() {
         </div>
         <Link className="admin-page__back" to="/">← Back to store</Link>
       </div>
+      {databaseStatus?.source === "local" && (
+        <div className="admin-db-banner admin-db-banner--local" role="status">
+          <AlertCircle size={18} />
+          <div>
+            <strong>Using local PostgreSQL</strong>
+            <span>Supabase is unavailable. Local changes, accounts, and orders are not automatically sent to the hosted database.</span>
+          </div>
+        </div>
+      )}
+      {databaseStatus?.source === "hosted" && (
+        <div className="admin-db-banner admin-db-banner--hosted" role="status">
+          <Shield size={18} />
+          <div>
+            <strong>Using hosted PostgreSQL</strong>
+            <span>Admin changes are saved to the database used by the deployed store.</span>
+          </div>
+        </div>
+      )}
+      {databaseStatus?.source === "unavailable" && (
+        <div className="admin-db-banner admin-db-banner--unavailable" role="alert">
+          <AlertCircle size={18} />
+          <div>
+            <strong>No database connection</strong>
+            <span>Neither the hosted database nor the configured local fallback is reachable.</span>
+          </div>
+        </div>
+      )}
       {error && (
         <div className="admin-page__error">
           <AlertCircle size={18} /> {error}
@@ -108,7 +187,18 @@ function AdminPage() {
           {tab === "stats" && <StatsTab stats={stats} />}
           {tab === "users" && <UsersTab users={users} onRoleChange={handleRoleChange} onBalanceChange={handleBalanceChange} />}
           {tab === "orders" && <OrdersTab orders={orders} onStatusChange={handleOrderStatus} />}
-          {tab === "products" && <ProductsTab products={products} onStockChange={handleStockChange} />}
+          {tab === "products" && (
+            <ProductsTab
+              products={products}
+              onStockChange={handleStockChange}
+              databaseStatus={databaseStatus}
+              inventoryComparison={inventoryComparison}
+              comparingInventory={comparingInventory}
+              syncingInventory={syncingInventory}
+              onCompareInventory={handleCompareInventory}
+              onSyncInventory={handleSyncInventory}
+            />
+          )}
         </div>
       )}
     </div>

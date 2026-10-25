@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Users, Package, DollarSign, AlertCircle, ChevronDown, ChevronUp, Search, Edit2, Check, X } from "lucide-react";
+import { Users, Package, DollarSign, AlertCircle, ChevronDown, ChevronUp, Search, Edit2, Check, X, RefreshCw } from "lucide-react";
 
 export function OrdersTab({ orders, onStatusChange }) {
   const [expanded, setExpanded] = useState(null);
@@ -67,7 +67,16 @@ export function OrdersTab({ orders, onStatusChange }) {
   );
 }
 
-export function ProductsTab({ products, onStockChange }) {
+export function ProductsTab({
+  products,
+  onStockChange,
+  databaseStatus,
+  inventoryComparison,
+  comparingInventory,
+  syncingInventory,
+  onCompareInventory,
+  onSyncInventory,
+}) {
   const [search, setSearch] = useState("");
   const [editingStock, setEditingStock] = useState(null);
   const [stockInput, setStockInput] = useState("");
@@ -76,6 +85,72 @@ export function ProductsTab({ products, onStockChange }) {
   const saveStock = (variantId) => { const qty = parseInt(stockInput, 10); if (!isNaN(qty) && qty >= 0) onStockChange(variantId, qty); setEditingStock(null); };
   return (
     <div className="admin-products">
+      {databaseStatus?.inventorySyncEnabled && (
+        <section className="admin-sync-panel" aria-label="Compare local and hosted inventory">
+          <div className="admin-sync-panel__header">
+            <div>
+              <h2>Local inventory sync</h2>
+              <p>Compare local stock with the hosted database. Only matching variants with stock differences can be updated.</p>
+            </div>
+            <button
+              className="button button--secondary"
+              type="button"
+              onClick={onCompareInventory}
+              disabled={comparingInventory || !databaseStatus.hostedAvailable || !databaseStatus.localAvailable}
+            >
+              <RefreshCw size={14} />
+              {comparingInventory ? "Comparing…" : "Compare inventory"}
+            </button>
+          </div>
+          {!databaseStatus.hostedAvailable && (
+            <p className="admin-sync-panel__note">Hosted PostgreSQL is unreachable. Local stock remains available here; comparison and sync will be enabled when it reconnects.</p>
+          )}
+          {databaseStatus.hostedAvailable && !databaseStatus.localAvailable && (
+            <p className="admin-sync-panel__note">Local PostgreSQL is unreachable. Start the local database before comparing inventory.</p>
+          )}
+          {inventoryComparison && (
+            <div className="admin-sync-panel__results">
+              {inventoryComparison.changes.length === 0 ? (
+                <p className="admin-sync-panel__note">No stock differences found for variants present in both databases.</p>
+              ) : (
+                <>
+                  <p className="admin-sync-panel__note">
+                    {inventoryComparison.changes.length} stock difference(s). Syncing will replace hosted values with the displayed local values.
+                  </p>
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead><tr><th>Album</th><th>Format</th><th>Local stock</th><th>Hosted stock</th></tr></thead>
+                      <tbody>
+                        {inventoryComparison.changes.map((change) => (
+                          <tr key={`${change.catalogId}-${change.format}-${change.editionName}`}>
+                            <td><div className="admin-product-cell"><span className="admin-product__title">{change.title}</span><span className="admin-product__artist">{change.artist}</span></div></td>
+                            <td>{change.format}{change.editionName !== "Standard" ? ` · ${change.editionName}` : ""}</td>
+                            <td>{change.localStock}</td>
+                            <td>{change.hostedStock}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button
+                    className="button button--primary admin-sync-panel__apply"
+                    type="button"
+                    onClick={onSyncInventory}
+                    disabled={syncingInventory || !databaseStatus.hostedAvailable || !databaseStatus.localAvailable}
+                  >
+                    {syncingInventory ? "Updating hosted stock…" : `Update hosted stock · ${inventoryComparison.changes.length} variants`}
+                  </button>
+                </>
+              )}
+              {(inventoryComparison.localOnly.length > 0 || inventoryComparison.hostedOnly.length > 0) && (
+                <p className="admin-sync-panel__note">
+                  Unmatched variants were not changed: {inventoryComparison.localOnly.length} local-only, {inventoryComparison.hostedOnly.length} hosted-only.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
       <div className="admin-toolbar">
         <div className="admin-search"><Search size={15} /><input type="text" placeholder="Search products…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         <span className="admin-count">{filtered.length} items</span>

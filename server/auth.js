@@ -3,7 +3,7 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { query } from "./db.js";
+import { getActiveDatabaseSource, query } from "./db.js";
 
 const router = Router();
 const SALT_ROUNDS = 12;
@@ -23,8 +23,12 @@ if (!JWT_SECRET) {
 const _JWT_SECRET = JWT_SECRET || "groove-dev-secret";
 
 // ─── Helpers ────────────────────────────────────────────────────
-function signToken(userId, role) {
-  return jwt.sign({ userId, role: role || "customer" }, _JWT_SECRET, { expiresIn: JWT_EXPIRES });
+function signToken(userId, role, email, displayName) {
+  return jwt.sign(
+    { userId, role: role || "customer", email, displayName },
+    _JWT_SECRET,
+    { expiresIn: JWT_EXPIRES }
+  );
 }
 
 function safeUser(row) {
@@ -41,6 +45,8 @@ export function authenticate(req, res, next) {
     const payload = jwt.verify(header.slice(7), _JWT_SECRET);
     req.userId = payload.userId;
     req.userRole = payload.role || "customer";
+    req.userEmail = payload.email || "";
+    req.userDisplayName = payload.displayName || null;
     next();
   } catch {
     res.status(401).json({ message: "Token invalid or expired" });
@@ -51,7 +57,12 @@ export function authenticate(req, res, next) {
 export async function requireAdmin(req, res, next) {
   try {
     const result = await query("SELECT role FROM users WHERE id = $1", [req.userId]);
-    if (!result.rowCount || result.rows[0].role !== "admin") {
+    if (!result.rowCount) {
+      const source = await getActiveDatabaseSource();
+      if (source === "local" && req.userRole === "admin") return next();
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    if (result.rows[0].role !== "admin") {
       return res.status(403).json({ message: "Admin access required" });
     }
     req.userRole = "admin";
@@ -85,7 +96,7 @@ router.post("/register", async (req, res, next) => {
     );
 
     const user = result.rows[0];
-    const token = signToken(user.id, user.role);
+    const token = signToken(user.id, user.role, user.email, user.display_name);
     res.status(201).json({ token, user: safeUser(user) });
   } catch (err) {
     next(err);
@@ -115,7 +126,7 @@ router.post("/login", async (req, res, next) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const token = signToken(user.id, user.role);
+    const token = signToken(user.id, user.role, user.email, user.display_name);
     res.json({ token, user: safeUser(user) });
   } catch (err) {
     next(err);
@@ -126,7 +137,20 @@ router.post("/login", async (req, res, next) => {
 router.get("/me", authenticate, async (req, res, next) => {
   try {
     const result = await query("SELECT * FROM users WHERE id = $1", [req.userId]);
-    if (result.rowCount === 0) return res.status(404).json({ message: "User not found" });
+    if (result.rowCount === 0) {
+      const source = await getActiveDatabaseSource();
+      if (source === "local") {
+        return res.json({
+          user: {
+            id: req.userId,
+            email: req.userEmail,
+            displayName: req.userDisplayName,
+            role: req.userRole,
+          },
+        });
+      }
+      return res.status(404).json({ message: "User not found" });
+    }
     res.json({ user: safeUser(result.rows[0]) });
   } catch (err) {
     next(err);
@@ -260,7 +284,12 @@ router.post("/reset-password", async (req, res, next) => {
       [passwordHash, result.rows[0].id]
     );
 
-    const jwtToken = signToken(updated.rows[0].id, updated.rows[0].role);
+    const jwtToken = signToken(
+      updated.rows[0].id,
+      updated.rows[0].role,
+      updated.rows[0].email,
+      updated.rows[0].display_name
+    );
     res.json({ token: jwtToken, user: safeUser(updated.rows[0]), message: "Password updated successfully" });
   } catch (err) {
     next(err);

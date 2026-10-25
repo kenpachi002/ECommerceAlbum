@@ -9,6 +9,9 @@
     "db:setup": "node server/setup-db.js",
     "db:migrate": "node server/migrate.js",
     "db:seed-real": "node server/seed-real.js",
+    "db:setup:local": "node server/run-local-db-task.js setup",
+    "db:migrate:local": "node server/run-local-db-task.js migrate",
+    "db:seed-real:local": "node server/run-local-db-task.js seed-real",
     "build": "vite build",
     "preview": "vite preview"
   },

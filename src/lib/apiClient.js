@@ -40,6 +40,7 @@ export const apiClient = {
   getProducts: (params = {}) => request(`/products?${queryParams(params)}`),
   getProduct: (productId) => request(`/products/${productId}`),
   itunesSearch: (query) => request(`/search/itunes?q=${encodeURIComponent(query)}`),
+  getDatabaseStatus: () => request("/database/status"),
 
     // Orders
   createOrder: (order) => request("/orders", { method: "POST", body: JSON.stringify(order) }),
@@ -68,4 +69,6 @@ export const apiClient = {
   updateOrderStatus: (orderId, status, deliveryDueAt) => request(`/admin/orders/${orderId}/status`, { method: "PATCH", body: JSON.stringify({ status, deliveryDueAt }) }),
   listProducts: () => request("/admin/products"),
   updateProductStock: (productId, stockQuantity) => request(`/admin/products/${productId}/stock`, { method: "PATCH", body: JSON.stringify({ stockQuantity }) }),
+  compareLocalInventory: () => request("/admin/inventory/compare"),
+  syncLocalInventory: (changes) => request("/admin/inventory/sync", { method: "POST", body: JSON.stringify({ changes }) }),
 };

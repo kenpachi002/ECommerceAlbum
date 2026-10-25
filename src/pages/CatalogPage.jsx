@@ -35,6 +35,7 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
   // ── DB catalog state ──────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -54,7 +55,9 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setCatalogError("");
     setProducts([]);
+    setTotal(0);
     setOffset(0);
     setHasMore(false);
 
@@ -68,8 +71,12 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
           setLoading(false);
         }
       })
-      .catch(() => {
-        if (!cancelled) { setProducts([]); setLoading(false); }
+      .catch((error) => {
+        if (!cancelled) {
+          setCatalogError(error.message || "The catalog database is unavailable.");
+          setProducts([]);
+          setLoading(false);
+        }
       });
 
     return () => { cancelled = true; };
@@ -292,6 +299,11 @@ export default function CatalogPage({ search, genre, format, onGenreChange, onFo
             {/* DB Catalog Results */}
             {loading ? (
               <SkeletonGrid count={8} />
+            ) : catalogError && !normalizedSearch ? (
+              <EmptyState
+                title="Catalog unavailable"
+                message={catalogError}
+              />
             ) : products.length === 0 && !normalizedSearch ? (
               <EmptyState
                 title="No pressings found"

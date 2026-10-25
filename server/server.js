@@ -3,7 +3,12 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import express from "express";
-import { pool, query } from "./db.js";
+import {
+  getDatabaseStatus,
+  inventorySyncPools,
+  pool,
+  query,
+} from "./db.js";
 import authRouter, { authenticate, requireAdmin } from "./auth.js";
 
 const app = express();
@@ -77,6 +82,59 @@ const productSelect = `
   JOIN product_variants v ON v.album_id = a.id
 `;
 
+const inventorySelect = `
+  SELECT a.catalog_id, a.title, ar.name AS artist,
+         v.id AS variant_id, v.format, v.edition_name, v.stock_quantity
+  FROM product_variants v
+  JOIN albums a ON a.id = v.album_id
+  JOIN artists ar ON ar.id = a.artist_id
+`;
+
+function inventoryKey(item) {
+  return JSON.stringify([item.catalog_id, item.format, item.edition_name]);
+}
+
+function compareInventory(localRows, hostedRows) {
+  const hostedByKey = new Map(hostedRows.map((row) => [inventoryKey(row), row]));
+  const localByKey = new Map(localRows.map((row) => [inventoryKey(row), row]));
+  const changes = [];
+  const localOnly = [];
+  const hostedOnly = [];
+
+  for (const local of localRows) {
+    const hosted = hostedByKey.get(inventoryKey(local));
+    if (!hosted) {
+      localOnly.push({
+        catalogId: local.catalog_id,
+        title: local.title,
+        format: local.format,
+      });
+    } else if (local.stock_quantity !== hosted.stock_quantity) {
+      changes.push({
+        catalogId: local.catalog_id,
+        title: local.title,
+        artist: local.artist,
+        format: local.format,
+        editionName: local.edition_name,
+        localStock: local.stock_quantity,
+        hostedStock: hosted.stock_quantity,
+      });
+    }
+  }
+
+  for (const hosted of hostedRows) {
+    if (!localByKey.has(inventoryKey(hosted))) {
+      hostedOnly.push({
+        catalogId: hosted.catalog_id,
+        title: hosted.title,
+        format: hosted.format,
+      });
+    }
+  }
+
+  return { changes, localOnly, hostedOnly };
+}
+
 function mapProduct(row) {
   return {
     ...row,
@@ -91,10 +149,20 @@ function mapProduct(row) {
 app.get("/api/health", async (_request, response) => {
   try {
     await query("SELECT 1");
-    response.json({ status: "ok", database: "postgresql", service: "groove-and-co-api" });
+    const database = await getDatabaseStatus();
+    response.json({
+      status: "ok",
+      database: "postgresql",
+      source: database.source,
+      service: "groove-and-co-api",
+    });
   } catch {
     response.status(503).json({ status: "error", message: "Database unavailable" });
   }
+});
+
+app.get("/api/database/status", async (_request, response) => {
+  response.json(await getDatabaseStatus());
 });
 
 app.get("/api/products", async (request, response, next) => {
@@ -437,6 +505,134 @@ app.patch("/api/admin/products/:id/stock", authenticate, requireAdmin, async (re
     if (!result.rowCount) return response.status(404).json({ message: "Product variant not found" });
     response.json({ success: true });
   } catch (error) { next(error); }
+});
+
+app.get("/api/admin/inventory/compare", authenticate, requireAdmin, async (_request, response, next) => {
+  try {
+    if (!inventorySyncPools) {
+      return response.status(403).json({
+        message: "Local inventory comparison is only available in local development.",
+      });
+    }
+
+    const [localResult, hostedResult] = await Promise.all([
+      inventorySyncPools.local.query(`${inventorySelect} ORDER BY a.catalog_id, v.format, v.edition_name`),
+      inventorySyncPools.hosted.query(`${inventorySelect} ORDER BY a.catalog_id, v.format, v.edition_name`),
+    ]);
+    response.json({
+      ...compareInventory(localResult.rows, hostedResult.rows),
+      localCount: localResult.rowCount,
+      hostedCount: hostedResult.rowCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/admin/inventory/sync", authenticate, requireAdmin, async (request, response, next) => {
+  if (!inventorySyncPools) {
+    return response.status(403).json({
+      message: "Local inventory sync is only available in local development.",
+    });
+  }
+
+  const requestedChanges = request.body?.changes;
+  if (
+    !Array.isArray(requestedChanges) ||
+    requestedChanges.length > 500 ||
+    requestedChanges.some((item) =>
+      !item ||
+      typeof item.catalogId !== "string" ||
+      typeof item.format !== "string" ||
+      typeof item.editionName !== "string" ||
+      !Number.isInteger(item.localStock) ||
+      item.localStock < 0 ||
+      !Number.isInteger(item.hostedStock) ||
+      item.hostedStock < 0
+    )
+  ) {
+    return response.status(400).json({ message: "Invalid inventory comparison payload." });
+  }
+
+  const requestedKeys = requestedChanges.map((item) =>
+    JSON.stringify([item.catalogId, item.format, item.editionName])
+  );
+  if (new Set(requestedKeys).size !== requestedKeys.length) {
+    return response.status(400).json({ message: "The inventory comparison contains duplicate variants." });
+  }
+
+  let client;
+  let transactionStarted = false;
+  try {
+    client = await inventorySyncPools.hosted.connect();
+    await client.query("BEGIN");
+    transactionStarted = true;
+
+    const [localResult, hostedResult] = await Promise.all([
+      inventorySyncPools.local.query(`${inventorySelect} ORDER BY a.catalog_id, v.format, v.edition_name`),
+      client.query(`${inventorySelect} ORDER BY a.catalog_id, v.format, v.edition_name FOR UPDATE OF v`),
+    ]);
+    const comparison = compareInventory(localResult.rows, hostedResult.rows);
+    const currentChanges = new Map(
+      comparison.changes.map((item) => [
+        JSON.stringify([item.catalogId, item.format, item.editionName]),
+        item,
+      ])
+    );
+    const requestMatchesCurrentComparison =
+      requestedChanges.length === currentChanges.size &&
+      requestedChanges.every((item) => {
+        const current = currentChanges.get(
+          JSON.stringify([item.catalogId, item.format, item.editionName])
+        );
+        return current &&
+          current.localStock === item.localStock &&
+          current.hostedStock === item.hostedStock;
+      });
+
+    if (!requestMatchesCurrentComparison) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return response.status(409).json({
+        message: "Inventory changed after comparison. Compare again before syncing.",
+      });
+    }
+
+    const hostedByKey = new Map(
+      hostedResult.rows.map((row) => [inventoryKey(row), row])
+    );
+    for (const change of comparison.changes) {
+      const hosted = hostedByKey.get(
+        JSON.stringify([change.catalogId, change.format, change.editionName])
+      );
+      const updated = await client.query(
+        "UPDATE product_variants SET stock_quantity = $1 WHERE id = $2 AND stock_quantity = $3 RETURNING id",
+        [change.localStock, hosted.variant_id, change.hostedStock]
+      );
+      if (!updated.rowCount) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return response.status(409).json({
+          message: "Hosted inventory changed during sync. Compare again before syncing.",
+        });
+      }
+    }
+
+    await client.query("COMMIT");
+    transactionStarted = false;
+    response.json({ updated: comparison.changes.length });
+  } catch (error) {
+    if (client && transactionStarted) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Failed to roll back inventory sync transaction:", rollbackError);
+      }
+    }
+    next(error);
+  } finally {
+    client?.release();
+  }
 });
 
 // ─── Wallet Routes ─────────────────────────────────────────────────────────
